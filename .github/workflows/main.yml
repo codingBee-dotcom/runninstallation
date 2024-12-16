@@ -23,9 +23,8 @@ jobs:
           $osType = "Windows" # Example OS type, adjust as needed
           $parentRid = "RID"  # Example RID prefix, adjust as needed
 
-          # Clear GITHUB_ENV (optional but helpful for debugging)
-          Clear-Content -Path $Env:GITHUB_ENV
-
+          # Loop through each server in parallel
+          $serverIndex = 0
           $serverNameList | ForEach-Object -Parallel {
             param (
               [string]$serverName, 
@@ -34,8 +33,10 @@ jobs:
               [int]$serverIndex
             )
 
+            # Trim server name (for safety)
             $serverName = $serverName.Trim()
-            $rid = $parentRid + ($serverIndex + 1).ToString().PadLeft(2, "0")  # Create a unique RID for each server
+            # Generate unique rollout identifier
+            $rid = $parentRid + ($serverIndex + 1).ToString().PadLeft(2, "0")
             $fileName = "$($rid).ini"
 
             try {
@@ -43,7 +44,7 @@ jobs:
               if ($osType -eq "Windows") {
                 echo "rid=$($rid), fileName=$($fileName), serverName=$($serverName), serverIndex=$($serverIndex)"
                 
-                # Simulate a command (replace with your actual rollout logic)
+                # Simulate rollout task (replace with your rollout command)
                 Start-Sleep -Seconds (Get-Random -Minimum 5 -Maximum 15) 
 
                 if ($LASTEXITCODE -ne 0) {
@@ -56,4 +57,4 @@ jobs:
               echo "validationError=$($validationError)" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
               throw $validationError
             }
-          } -ArgumentList $using:osType, $using:parentRid -ThrottleLimit 5
+          } -ArgumentList $osType, $parentRid, $serverIndex -ThrottleLimit 5
