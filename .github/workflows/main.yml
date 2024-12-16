@@ -1,36 +1,52 @@
-# This is a basic workflow to help you get started with Actions
-
-name: CI
-
-# Controls when the workflow will run
+name: Check and Execute Rollout
+permissions:
+  contents: write  # Allow write access to the repository contents (including committing)
+  
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  schedule:
+    - cron: '*/5 * * * *'  # Runs every 5 minutes, adjust as needed.
+  workflow_dispatch:  # Allows for manual triggering if needed.
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  check_rollout_schedule:
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v2
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
+      - name: execute rollouts
+        id: run-rollout
+        shell: pwsh
+        run: | 
+          $serverNameList = @("server1", "server2", "server3") 
+          $osType = "Windows" # Example OS type, adjust as needed
+          $parentRid = "RID" # Example RID prefix, adjust as needed
+          $serverIndex = 0
+          $serverNameList | ForEach-Object -Parallel {
+          param (
+          $serverName,
+          $osType,
+          $parentRid,
+          $serverIndex
+          )
+          $serverName = $serverName.Trim()
+          $serverIndex++
+          $rid = $parentRid.ToString() + $serverIndex.ToString().PadLeft(2, "0")
+          $fileName = "$($rid).ini"
 
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
-        run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+           try {
+                Write-Host "Running ansible using $($rid).ini - install"
+                if ($osType -eq "Windows") {
+                echo "rid=$($rid), fileName=$($fileName), serverName=$($serverName), serverIndex=$($serverIndex)"
+                 if ($LASTEXITCODE -ne 0) {
+                  throw "Error installing rollout on server $($serverName)"
+                  }
+                 }
+               } catch {
+                $_
+            $validationError = "$($_.Exception.Message)"
+            echo "validationError=$($validationError)" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+             throw $validationError
+           }}-ArgumentList $serverName, $osType, $parentRid, $serverIndex -ThrottleLimit 5 # Adjust ThrottleLimit as needed
+                     
