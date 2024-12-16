@@ -15,38 +15,45 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v2
 
-      - name: execute rollouts
+      - name: Execute Rollouts
         id: run-rollout
         shell: pwsh
-        run: | 
+        run: |
           $serverNameList = @("server1", "server2", "server3") 
           $osType = "Windows" # Example OS type, adjust as needed
-          $parentRid = "RID" # Example RID prefix, adjust as needed
-          $serverIndex = 0
-          $serverNameList | ForEach-Object -Parallel {
-          param (
-          $serverName,
-          $osType,
-          $parentRid,
-          $serverIndex
-          )
-          $serverName = $serverName.Trim()
-          $serverIndex++
-          $rid = $parentRid.ToString() + $serverIndex.ToString().PadLeft(2, "0")
-          $fileName = "$($rid).ini"
+          $parentRid = "RID"  # Example RID prefix, adjust as needed
 
-           try {
-                Write-Host "Running ansible using $($rid).ini - install"
-                if ($osType -eq "Windows") {
+          # Clear GITHUB_ENV (optional but helpful for debugging)
+          Clear-Content -Path $Env:GITHUB_ENV
+
+          $serverNameList | ForEach-Object -Parallel {
+            param (
+              [string]$serverName, 
+              [string]$osType, 
+              [string]$parentRid, 
+              [int]$serverIndex
+            )
+
+            $serverName = $serverName.Trim()
+            $rid = $parentRid + ($serverIndex + 1).ToString().PadLeft(2, "0")  # Create a unique RID for each server
+            $fileName = "$($rid).ini"
+
+            try {
+              Write-Host "Running ansible using $($rid).ini - install"
+              if ($osType -eq "Windows") {
                 echo "rid=$($rid), fileName=$($fileName), serverName=$($serverName), serverIndex=$($serverIndex)"
-                 if ($LASTEXITCODE -ne 0) {
+                
+                # Simulate a command (replace with your actual rollout logic)
+                Start-Sleep -Seconds (Get-Random -Minimum 5 -Maximum 15) 
+
+                if ($LASTEXITCODE -ne 0) {
                   throw "Error installing rollout on server $($serverName)"
-                  }
-                 }
-               } catch {
-                $_
-            $validationError = "$($_.Exception.Message)"
-            echo "validationError=$($validationError)" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
-             throw $validationError
-           }}-ArgumentList $serverName, $osType, $parentRid, $serverIndex -ThrottleLimit 5 # Adjust ThrottleLimit as needed
-                     
+                }
+              }
+            } catch {
+              $_
+              $validationError = "$($_.Exception.Message)"
+              echo "validationError=$($validationError)" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+              throw $validationError
+            }
+          } -ArgumentList $using:osType, $using:parentRid -ThrottleLimit 5
